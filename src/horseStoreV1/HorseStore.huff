@@ -58,7 +58,9 @@
 
     // revert if all the above conditions fail
     // offset => 0x00 size => 0x00
-    0x00 0x00 revert
+    0x00 
+    0x00 
+    revert
 
     updateJump:
         SET_NUMBER_OF_HORSES()
@@ -85,8 +87,10 @@
 
     // 3. sstore opcode
         // Stack input
-        // key: 32-byte key in storage. (where in storage this variable has to be stored)
-        // value: 32-byte value to store.
+        // 1. key: 32-byte key in storage. (where in storage this variable has to be stored)
+        // 2. value: 32-byte value to store.
+        // top of the stack should contain the `storage_slot`
+        // bottom of the stack should contain the `value`
     // For sstore to work, the stack should look like this
     // [storage_slot, value]
     // we have storage slot, as well as value
@@ -97,7 +101,41 @@
     
 }
 
-#define macro GET_NUMBER_OF_HORSES() = takes(0) returns(0){}
+#define macro GET_NUMBER_OF_HORSES() = takes(0) returns(0){
+    // 1. Get the storage slot
+    [NUMBER_OF_HORSES_STORAGE_SLOT]        // [key]
+
+    // To call `sload` we need storage slot on the stack
+    sload   
+    // whatever the value present in storage_slot will be loaded in stack
+    // [value]
+    // to return this value, we have to store this value in memory                               
+
+    // 2. Load the value of that slot into memory
+        // Stack input
+        // offset: offset in the memory in bytes. [key]
+        // value: 32-byte value to write in the memory. [value]
+    
+    // stack already contains the [value]
+    // since we have nothing in memory, let's assign the 0th slot
+    0x00
+
+    // [storage_slot, value]
+    mstore              // [] => stack will be empty by value will be in memory // Memory: [value]
+ 
+    // 3. return
+        // 1. offset: byte offset in the memory in bytes, to copy what will be the return data of this context.
+        // 2. size: byte size to copy (size of the return data).
+        // top of the stack will be [memory_slot]
+        // bottom will the size of the return type [size]
+    // for return our stack should look like this [memory_slot, size]
+
+    // 0x20 is equal to 32 bytes => `cast to-base 0x20 dec`
+    0x20
+    0x00
+    return
+    
+}
 
 
 
