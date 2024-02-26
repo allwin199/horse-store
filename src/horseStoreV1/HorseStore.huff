@@ -4,10 +4,35 @@
 #define macro MAIN() = takes(0) returns(0) {
     // PUSH0 0x00 -> can be written as
     0x00            // [0]
+
+    // push the 32 bytes of calldata on the stack 
     calldataload    // [calldata (32)]
+
+    // 224 bites in hex
     0xe0            // [0xe0, calldata (32)]
+
+    // perform right shift (calldata >> 0xe0)
     shr             // [shr, 0xe0, calldata (32)] => [function_selector]
+
+    // PUSH4 `updateHorseNumber` selector
+    0xcdfead2e      // [0xcdfead2e, function_selector]
+    
+    // check whether the above function selector and function selector present in the stack is same
+    // returns 1 if it is true, or 0
+    eq              // [0xcdfead2e, function_selector] => [1] if condition is true
+
+    // Jump to `updateHorseNumber` code if `eq` is true
+    updateJump      // [updateHorseNumberProgramCounter, 1]
+
+    // JumpIf -> If the condition is true, jump to `updateHorseNumberProgramCounter`
+    jumpi           // []
+
+    updateJump:
+        SET_NUMBER_OF_HORSES()
+
 }
+
+#define macro SET_NUMBER_OF_HORSES() = takes(0) returns(0){}
 
 // Most compiled contracts have 3 or 4 sections
 // 1. Contract Creation code
@@ -84,8 +109,54 @@
 // ]
 
 // output of the right shift will be put back in the stack
+// which is the [function_selector]
 
 // 60058060093d393df35f3560e01c this is the compiled byte code
 // 60058060093d393df3 -> contract creation code
 // 5f3560e01c -> run time code
 // run this in evm playground
+
+// [function_selector] is present in the stack right now
+// since we have function_selector
+// Jump to the function associated with the selector
+
+// If function_selector == updateHorseNumber -> Jump to that code
+// If function_selector == readHorseNumber -> Jump to that code
+
+// function_selector for updateHorseNumber  => 0xcdfead2e
+// function_selector for readNumberOfHorses => 0xe026c017
+
+// after doing `shr` we got the `function_selector`
+// now we have to route the call to that function
+// to route to the function
+// we have to use `Jump`
+// `Jump` to that function
+// Before jump we have to check which function it has to jump
+// for that we can use `eq` opcode
+
+// now top of the stack will contain [function_selector] of updateHorseNumber
+// which is [0xcdfead2e]
+// we are the pushing `updateHorseNumber` selector into the stack
+// since it is 4 bytes, it will be `push4`
+// push4 0xcdfead2e
+// [0xcdfead2e, function_selector_of_updateHorseNumber] will be on the stack
+// `eq` will compare these 2 and it will return 1 if true or 0
+
+// If it returns true
+// we have to use `JumpI` opcode
+// `JumpI` stands for `Jump` if some condition is true
+// `JumpI` requires the `pragram_counter` to jump to and then the condition
+// `JumpI`  [program_counter, condition]
+
+// Jump to `updateHorseNumber` code if `eq` is true
+// updateJump      // [updateHorseNumberProgramCounter, true/false]
+// updateJump:
+//      SET_NUMBER_OF_HORSES()
+// if `JumpI` returns true, It will be routed to `SET_NUMBER_OF_HORSES()` in this case 
+
+// when we use `JumpI` it can only jump to destination compatible to `JUMPDEST` opcode
+// updateJump:
+//      SET_NUMBER_OF_HORSES()
+// since we are using `updateJump` we are saying `SET_NUMBER_OF_HORSES()` is a valid jump destination
+
+
