@@ -1,6 +1,4 @@
-
 // 60008060093d393df3 -> contract creation byte code
-// 60018060093d393df35f 
 #define macro MAIN() = takes(0) returns(0) {
     // PUSH0 0x00 -> can be written as
     0x00            // [0]
@@ -14,25 +12,52 @@
     // perform right shift (calldata >> 0xe0)
     shr             // [shr, 0xe0, calldata (32)] => [function_selector]
 
+    // duplicate the `function_selector` for later use
+    dup1            // [0xcdfead2e, function_selector, duplicate_function_selector]
+
     // PUSH4 `updateHorseNumber` selector
-    0xcdfead2e      // [0xcdfead2e, function_selector]
+    0xcdfead2e      // [0xcdfead2e, function_selector, duplicate_function_selector]
     
     // check whether the above function selector and function selector present in the stack is same
     // returns 1 if it is true, or 0
-    eq              // [0xcdfead2e, function_selector] => [1] if condition is true
+    eq              // [0xcdfead2e, function_selector, duplicate_function_selector] => [1] if condition is true
 
     // Jump to `updateHorseNumber` code if `eq` is true
-    updateJump      // [updateHorseNumberProgramCounter, 1]
+    updateJump      // [updateHorseNumberProgramCounter, 1, duplicate_function_selector]
 
     // JumpIf -> If the condition is true, jump to `updateHorseNumberProgramCounter`
+    jumpi           // [duplicate_function_selector]
+
+    // if the condition is false, then we don't jump
+
+    // PUSH4 `readNumberOfHorses` selector
+    0xe026c017      // [0xe026c017, duplicate_function_selector]
+
+    // check whether the above function selector and function selector present in the stack is same
+    // returns 1 if it is true, or 0
+    eq              // [0xe026c017, duplicate_function_selector] => [1] if condition is true
+
+    // Jump to `readNumberOfHorses` code if `eq` is true
+    readJump        // [readNumberOfHorsesProgramCounter, 1]
+
+    // JumpIf -> If the condition is true, jump to `readNumberOfHorsesProgramCounter`
     jumpi           // []
+
+    // revert if all the above conditions fail
+    // offset => 0x00 size => 0x00
+    0x00 0x00 revert
 
     updateJump:
         SET_NUMBER_OF_HORSES()
 
+    readJump:
+        GET_NUMBER_OF_HORSES()
+
 }
 
 #define macro SET_NUMBER_OF_HORSES() = takes(0) returns(0){}
+
+#define macro GET_NUMBER_OF_HORSES() = takes(0) returns(0){}
 
 // Most compiled contracts have 3 or 4 sections
 // 1. Contract Creation code
@@ -158,5 +183,10 @@
 // updateJump:
 //      SET_NUMBER_OF_HORSES()
 // since we are using `updateJump` we are saying `SET_NUMBER_OF_HORSES()` is a valid jump destination
+
+// If the condition is false, we shouldn't jump
+// to reuse the function selector, we are duplicating it
+
+// Let's run the `eq` and `jump` process for `readNumberOfHorses` function dispatch
 
 
