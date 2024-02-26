@@ -1,0 +1,91 @@
+
+// 60008060093d393df3 -> contract creation byte code
+// 60018060093d393df35f 
+#define macro MAIN() = takes(0) returns(0) {
+    // PUSH0 0x00 -> can be written as
+    0x00            // [0]
+    calldataload    // [calldata (32)]
+    0xe0            // [0xe0, calldata (32)]
+    shr             // [shr, 0xe0, calldata (32)] => [function_selector]
+}
+
+// Most compiled contracts have 3 or 4 sections
+// 1. Contract Creation code
+// 2. Runtime code
+// 3. Metadata code
+
+// `INVALID` acts as a delimeter between each sections
+
+// PUSH0 0x00 -> can be written as
+// 0x00 
+// we are placing 0 items on the stack
+// TOP [0] BOTTOM -> stack right now looks like this
+
+// calldataload
+// when calldata is called, stack will have `0x00`
+// now this `0x00` will be popped of the stack
+// calldata will be pushed to the stack
+// since previously `0x00` was present first `32 bytes` will be pushed into the stack starting from 0
+// calldata -> 0xcdfead2e0000000000000000000000000000000000000000000000000000000000000001
+// for eg if it was `0x01` it will push the bytes starting from `1` leaving `0`
+
+// In the calldata, we want only the `functionSelector` which is first 4 bytes
+
+// let's take an eg
+// 0x0102 (this is in bytes)
+// 1 byte = 8 bits
+// cast --to-base 0x0102 bin
+// 0b100000010 this is the binary version // 0b to represent this as binary in foundry
+// 0b 1 00000010 
+// 02 => 00000010
+// 01 => 0000 0001 // since left side is all 0's only `1` is taken
+// 0x0102 = 0000 0001 0000 0010
+// 0b100000010 >> 2
+
+// 0x0102 = 0000 0001 0000 0010
+// After right shifting by 2 positions 
+// 0000 0000 0100 0000
+// 0000 0000 0100 0000 = 0x0040 in hex
+// 0x0040 = 4 * 16^1 + 0 * 16^0 = 64 in dec
+
+// 0x0102 = 0000 0001 0000 0010
+// After right shifting by 4 positions:
+// 0000 0000 0001 0000
+// 0000 0000 0001 0000 = 0x0010 in hex
+// 0x0010 = 1 * 16^1 + 0 * 16^0 = 16 in dec
+
+// calldata -> 0xcdfead2e0000000000000000000000000000000000000000000000000000000000000001
+// when we call `calldatatoload` opcode. It will place only 32 bytes
+// 0xcdfead2e000000000000000000000000000000000000000000000000000000
+// the above will be place on the stack
+// 0000000001
+
+// calldata -> 0xcdfead2e000000000000000000000000000000000000000000000000000000
+// we want only 0xcdfead2e to be placed on the stack
+// 32 bytes is there and we want only first 4 bytes
+// 32-4 = 28 bytes
+// we have to right shift by 28 bytes or 28 * 8 = 224 bits
+// cast to-base 224 hex 
+// 0xe0
+
+// we have calldata which is pushed using `calldatatoload`
+// calldata is at the bottom of the stack
+// let's do push1 0xe0
+// [
+//     0xe0
+//     calldata
+// ]
+
+// let's do right shift
+// [
+//     shr
+//     0xe0
+//     calldata
+// ]
+
+// output of the right shift will be put back in the stack
+
+// 60058060093d393df35f3560e01c this is the compiled byte code
+// 60058060093d393df3 -> contract creation code
+// 5f3560e01c -> run time code
+// run this in evm playground
