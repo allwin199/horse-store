@@ -1,3 +1,16 @@
+
+/* Interace */
+#define function updateHorseNumber(uint256) nonpayable returns()
+#define function readNumberOfHorses() view returns(uint256)
+// If it is not a view and non-payable function, we have to specify it as non-payable
+
+#define constant NUMBER_OF_HORSES_STORAGE_SLOT = FREE_STORAGE_POINTER()
+// FREE_STORAGE_POINTER() will return the next free storage slot
+// since this is the first time we are calling, it will return 0
+// if we call second time it will return 1
+// Note: every storage slot is 32 bytes
+
+
 // 60008060093d393df3 -> contract creation byte code
 #define macro MAIN() = takes(0) returns(0) {
     // PUSH0 0x00 -> can be written as
@@ -16,7 +29,7 @@
     dup1            // [0xcdfead2e, function_selector, duplicate_function_selector]
 
     // PUSH4 `updateHorseNumber` selector
-    0xcdfead2e      // [0xcdfead2e, function_selector, duplicate_function_selector]
+    __FUNC_SIG(updateHorseNumber)      // [0xcdfead2e, function_selector, duplicate_function_selector]
     
     // check whether the above function selector and function selector present in the stack is same
     // returns 1 if it is true, or 0
@@ -31,7 +44,7 @@
     // if the condition is false, then we don't jump
 
     // PUSH4 `readNumberOfHorses` selector
-    0xe026c017      // [0xe026c017, duplicate_function_selector]
+    __FUNC_SIG(readNumberOfHorses)      // [0xe026c017, duplicate_function_selector]
 
     // check whether the above function selector and function selector present in the stack is same
     // returns 1 if it is true, or 0
@@ -55,9 +68,40 @@
 
 }
 
-#define macro SET_NUMBER_OF_HORSES() = takes(0) returns(0){}
+#define macro SET_NUMBER_OF_HORSES() = takes(0) returns(0){
+    // 2. Get the value to store from `calldata`
+    // we want only the args from calldata and neglect the function selector
+    // we know function selector is 4 bytes
+    // let's push 4 bytes to stack
+    0x04  
+    // now when `calldatatoload` is given as input, first 4 bytes will be neglected
+    calldataload 
+
+    // 1. Give it a storage slot
+    [NUMBER_OF_HORSES_STORAGE_SLOT]          // [storage_slot, value]
+    // [NUMBER_OF_HORSES_STORAGE_SLOT] since it is inside the []
+    // it will refer the storage pointer
+    // value of `NUMBER_OF_HORSES_STORAGE_SLOT` will be pushed at storage slot 0                 
+
+    // 3. sstore opcode
+        // Stack input
+        // key: 32-byte key in storage. (where in storage this variable has to be stored)
+        // value: 32-byte value to store.
+    // For sstore to work, the stack should look like this
+    // [storage_slot, value]
+    // we have storage slot, as well as value
+    sstore 
+
+    // Finally,
+    stop
+    
+}
 
 #define macro GET_NUMBER_OF_HORSES() = takes(0) returns(0){}
+
+
+
+
 
 // Most compiled contracts have 3 or 4 sections
 // 1. Contract Creation code
