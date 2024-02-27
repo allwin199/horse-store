@@ -112,19 +112,32 @@ DUP1                    // [0x00, 0x00]
 REVERT                  // []
 // Revert If the calldata size is too small
 
-JUMPDEST
-PUSH1 0x43
-PUSH1 0x3f
-CALLDATASIZE
-PUSH1 0x04
-PUSH1 0x59
-JUMP
-JUMPDEST
-PUSH0
-SSTORE
-JUMP
-JUMPDEST
-STOP
+
+// updateHorseNumber jump dest 1
+// Setup jumping program counters in the stack
+// [func_selector] is the stack from JUMPI
+JUMPDEST                // [function_selector]
+PUSH1 0x43              // [0x43, function_selector]
+PUSH1 0x3f              // [0x3f, 0x43, function_selector]
+CALLDATASIZE            // [calldata_size, 0x3f, 0x43, function_selector]
+PUSH1 0x04              // [0x04, calldata_size, 0x3f, 0x43, function_selector]
+PUSH1 0x59              // [0x59, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+JUMP                    // [0x04, calldata_size, 0x3f, 0x43, function_selector] // Jumped to `0x59` PROGRAM_COUNTER
+
+// Jump Dest 4
+// We can finally run an sstore to save our value to storage
+JUMPDEST                // [calldata_without_selector , 0x43, function_selector] 
+PUSH0                   // [0x00, calldata_without_selector , 0x43, function_selector]
+SSTORE                  // [0x43, function_selector] // `calldata_without_selector` is stored at storage slot `0x00`
+// This is where  `horseNumber` is updated in storage
+JUMP                    // [function_selector]
+// Jump to `0x43`
+// aka Jump to JumpDest 5
+
+// Jump Dest 5
+JUMPDEST                // [function_selector]
+STOP                    // [function_selector] // halts the execution
+
 JUMPDEST
 PUSH0
 SLOAD
@@ -136,32 +149,54 @@ MSTORE
 PUSH1 0x20
 ADD
 PUSH1 0x40
-MLOAD
+MLOAD                   //
 DUP1
 SWAP2
 SUB
 SWAP1
 RETURN
-JUMPDEST
-PUSH0
-PUSH1 0x20
-DUP3
-DUP5
-SUB
-SLT
-ISZERO
-PUSH1 0x68
-JUMPI
-PUSH0
-DUP1
-REVERT
-JUMPDEST
-POP
-CALLDATALOAD
-SWAP2
-SWAP1
-POP
-JUMP
+
+// updateHorseNumber jump dest 2
+// Check to see if there is a value to update the horse number to
+// Total calldata will be 
+// 4 bytes for the function_selector and 32 bytes for the horse number
+JUMPDEST                // [0x04, calldata_size, 0x3f, 0x43, function_selector]
+PUSH0                   // [0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+PUSH1 0x20              // [0x20, 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+DUP3                    // [0x04, 0x20, 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+DUP5                    // [calldata_size, 0x04, 0x20, 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+SUB                     // [calldata_size - 0x04, 0x20, 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+SLT                     // [calldata_size - 0x04 < 0x20, 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector] a < b ? 1 : 0
+// is there more calldata than just the function selector?
+// if calldata_size = 4 bytes then  calldata_size - 0x04 < 0x20 (4 - 4 < 32) will be true and it will return 1
+// if calldata contains function_selector as well as data (which is bytes32)
+// now calldata_size will be bigger and calldata_size - 0x04 < 0x20 will fail and will return 0
+ISZERO                  // [calldata_size - 0x04 < 0x20 == 0 , 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+PUSH1 0x68              // [0x68, calldata_size - 0x04 < 0x20 == 0 , 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+// 0x68 is the PC, if (calldata_size - 0x04 < 0x20 == 0) this condition is true, then JUMP
+JUMPI                   // [0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+// we are going to jump to jump dest 3 (`0x68`) if there is more calldata than : function_selector + 0x20
+// If the condition fails, continue
+
+// Revert if there isn't enough calldata!
+PUSH0                   // [0x00, 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+DUP1                    // [0x00, 0x00, 0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+REVERT                  // [0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+
+// updateHorseNumber jump dest 3
+// Grab the calldata for updating the horse number
+JUMPDEST                // [0x00, 0x04, calldata_size, 0x3f, 0x43, function_selector]
+POP                     // [0x04, calldata_size, 0x3f, 0x43, function_selector]
+// since the offset is 0x04, Ignore the function selector and just grab the data
+CALLDATALOAD            // [calldata_without_selector, calldata_size, 0x3f, 0x43, function_selector]
+SWAP2                   // [0x3f, calldata_size, calldata_without_selector , 0x43, function_selector]
+SWAP1                   // [calldata_size, 0x3f, calldata_without_selector , 0x43, function_selector]
+POP                     // [0x3f, calldata_without_selector , 0x43, function_selector]
+JUMP                    // [calldata_without_selector, 0x43, function_selector] 
+// Jump to `0x3f`
+// which is jump to Jump dest 4
+
+
 INVALID
 LOG2
 PUSH5 0x6970667358
