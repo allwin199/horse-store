@@ -12,19 +12,24 @@ PUSH1 0x80              // [0x80]
 PUSH1 0x40              // [0x40, 0x80]  
 MSTORE                  // []       // Memory 0x40 -> 0x80
 
-CALLVALUE
-DUP1
-ISZERO
-PUSH1 0x0e
-JUMPI
-PUSH0
-DUP1
-REVERT
-JUMPDEST
-POP
-PUSH1 0xa5
-DUP1
-PUSH2 0x001b
+// If someone sent value with the call then revert!
+// Otherwise, jump, to continue execution
+CALLVALUE               // [msg.value]
+DUP1                    // [msg.value, msg.value]
+ISZERO                  // [msg.value == 0, msg.value] => If msg.value == 0, then o/p 1 => [1,0]
+PUSH1 0x0e              // [0x0e, msg.value == 0, msg.value]
+JUMPI                   // [msg.value]
+PUSH0                   // [0x00, msg.value]
+DUP1                    // [0x00, 0x00, msg.value]
+REVERT                  // [msg.value]
+
+// Jump dest if msg.value == 0
+// Before JUMPI stack contains [msg.value]
+JUMPDEST                 // [msg.value]
+POP                      // []
+PUSH1 0xa5               // [0xa5]
+DUP1                     // [0xa5, 0xa5]
+PUSH2 0x001b                
 PUSH0
 CODECOPY
 PUSH0
@@ -154,3 +159,47 @@ PUSH13 0x63430008140033
 // During contract creation code or run time code
 // Solidity will always load the free memory pointer
 // which means it will check which is the current memory slot where value can be placed
+
+// CALLVALUE
+// It dosen't take any input
+// Stack output
+// value: the value of the current call in wei.
+// CALLVALUE is checking the msg.value and putting that on the stack [msg.value]
+
+// Dup1
+// duplicate whatever is present at the top of the stack
+// [msg.value] was at the top
+// it will be duplicated
+// [msg.value, msg.value]
+
+// ISZERO
+// Stack input
+// a: integer.
+// Stack output
+// a == 0: 1 if a is 0, 0 otherwise.
+// top of the stack will contain [msg.value, msg.value]
+// which is [0,0]
+// since a is top of the stack
+// which is 0
+// a == 0 , then 1 will be ouputted to the stack
+// 1 will placed back in the stack
+// [1,0] will be in the stack
+
+// PUSH1 0x0e
+// push `0x0e` on top of the stack
+// [0x0e, msg.value == 0, msg.value]
+
+// JUMPI
+// Stack input
+// counter: byte offset in the deployed code where execution will continue from. Must be a JUMPDEST instruction.
+// b: the program counter will be altered with the new value only if this value is different from 0. Otherwise, the program counter is simply incremented and the next instruction will be executed.
+// counter will be whatever is at top of the stack
+// b: condition to check whether to jump or not
+// [0x0e, msg.value == 0, msg.value]
+// b will be `msg.value == 0`
+// since `msg.value == 0` will return `1` according to ISZERO
+// JUMPI will get executed
+// stack will only contain [msg.value]
+
+// During contract creation, if msg.value is 0
+// Then it will jump to the JumpDest
