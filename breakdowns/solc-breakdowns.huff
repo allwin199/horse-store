@@ -74,20 +74,35 @@ JUMPI                    // [] // Jump to `0x30` if calldata_size < 0x04, or con
 // since we have don't have a fallback fn, if the size of the calldata is too small, it will jump
 
 // If the calldata_size is big enough, it will continue
+// Function dispatching in solidity
 PUSH0                    // [0x00]
-CALLDATALOAD             // [calldata, 0x00]
-PUSH1 0xe0               // [0xe0, calldata, 0x00]
-SHR
-DUP1
-PUSH4 0xcdfead2e
-EQ
-PUSH1 0x34
-JUMPI
-DUP1
-PUSH4 0xe026c017
-EQ
-PUSH1 0x45
-JUMPI
+CALLDATALOAD             // [32 bytes of calldata]
+PUSH1 0xe0               // [0xe0, 32 bytes of calldata]
+SHR                      // [function_selector] // shift the calldata value by whatever is at top of the stack 
+// shift calldata by `0xe0` which is `224`// calldata >> 224 
+// Output will be pushed on the stack
+// We are striping `function_selector` from the calldata
+
+// Function dispatching for `updateHorseNumber`
+DUP1                     // [func_selector, func_selector]
+PUSH4 0xcdfead2e         // [0xcdfead2e, func_selector, func_selector] // 0xcdfead2e is the function_selector for `updateHorseNumber`
+EQ                       // [0xcdfead2e == func_selector, func_selector]  // if a == b ? 1 : 0
+PUSH1 0x34               // [0x34, 0xcdfead2e == func_selector, func_selector]
+JUMPI                    // [func_selector] // programCounter = 0x34 // condition is 0xcdfead2e == func_selector
+// If the condition is true, JUMP to `0x34`
+// If not continue
+
+
+// Function dispatching for `readNumberOfHorses`
+DUP1                     // [func_selector, func_selector]
+PUSH4 0xe026c017         // [0xe026c017, func_selector, func_selector] // 0xe026c017 is the function_selector for `readNumberOfHorses`
+EQ                       // [0xe026c017 == func_selector, func_selector]
+PUSH1 0x45               // [0x45, 0xe026c017 == func_selector, func_selector]
+JUMPI                    // [func_selector] // programCounter = 0x45 // condition is 0xe026c017 == func_selector
+// If the condition is true, JUMP to `0x45`
+// If not continue
+// If no function selectors were matched
+// It will revert from the below revert
 
 // calldata_jump
 // Revert JumpDest
