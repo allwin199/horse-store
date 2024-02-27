@@ -24,17 +24,20 @@ DUP1                    // [0x00, 0x00, msg.value]
 REVERT                  // [msg.value]
 
 // Jump dest if msg.value == 0
+// Sticks the runtime code on chain
 // Before JUMPI stack contains [msg.value]
 JUMPDEST                 // [msg.value]
 POP                      // []
 PUSH1 0xa5               // [0xa5]
 DUP1                     // [0xa5, 0xa5]
-PUSH2 0x001b                
-PUSH0
-CODECOPY
-PUSH0
-RETURN
-INVALID
+PUSH2 0x001b             // [0x001b, 0xa5, 0xa5] 
+PUSH0                    // [0x00, 0x001b, 0xa5, 0xa5]
+CODECOPY                 // [0xa5]            Memory:[runtime code]
+PUSH0                    // [0x00, 0xa5]
+RETURN                   // []
+INVALID                  // []
+// INVALID signals the end of the contract creation code
+
 PUSH1 0x80
 PUSH1 0x40
 MSTORE
@@ -203,3 +206,32 @@ PUSH13 0x63430008140033
 
 // During contract creation, if msg.value is 0
 // Then it will jump to the JumpDest
+
+// CODECOPY
+// Copy code running in current environment to memory
+// Stack input
+// 1. destOffset: byte offset in the memory where the result will be copied.
+// 2. offset: byte offset in the code to copy.
+// 3. size: byte size to copy.
+// [0x00, 0x001b, 0xa5, 0xa5]
+// destOffset -> 0x00
+// offset -> 0x001b
+// size -> 0xa5
+// 0x00 is destOffset which means nothing to offset
+// 0x001b is offset, which means
+// whatever is at line 27 push it in memory
+// size of it will be 0xa5 (165)
+
+// [0xa5] will be only present at the stack after `CODECOPY`
+
+// [0x00, 0xa5] in stack
+// Stack input
+// offset: byte offset in the memory in bytes, to copy what will be the return data of this context.
+// size: byte size to copy (size of the return data).
+// Return both of these
+
+// Finally, we know
+// CODECOPY is `0xa5` long
+// we are returning the entire memory
+// which has run time code and
+// sticking them on chain as a smart contract
