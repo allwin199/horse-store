@@ -92,14 +92,14 @@ JUMPI                    // [func_selector] // programCounter = 0x34 // conditio
 // If the condition is true, JUMP to `0x34`
 // If not continue
 
-
 // Function dispatching for `readNumberOfHorses`
 DUP1                     // [func_selector, func_selector]
-PUSH4 0xe026c017         // [0xe026c017, func_selector, func_selector] // 0xe026c017 is the function_selector for `readNumberOfHorses`
+PUSH4 0xe026c017         // [0xe026c017, func_selector, func_selector] // 0xe026c017 => function_selector for `readNumberOfHorses`
 EQ                       // [0xe026c017 == func_selector, func_selector]
 PUSH1 0x45               // [0x45, 0xe026c017 == func_selector, func_selector]
 JUMPI                    // [func_selector] // programCounter = 0x45 // condition is 0xe026c017 == func_selector
 // If the condition is true, JUMP to `0x45`
+// aka readNumberOfHorses jump dest 1
 // If not continue
 // If no function selectors were matched
 // It will revert from the below revert
@@ -138,23 +138,38 @@ JUMP                    // [function_selector]
 JUMPDEST                // [function_selector]
 STOP                    // [function_selector] // halts the execution
 
-JUMPDEST
-PUSH0
-SLOAD
-PUSH1 0x40
-MLOAD
-SWAP1
-DUP2
-MSTORE
-PUSH1 0x20
-ADD
-PUSH1 0x40
-MLOAD                   //
-DUP1
-SWAP2
-SUB
-SWAP1
-RETURN
+// readNumberOfHorses jump dest 1
+// this will be only Jump Dest for readNumberOfHorses
+JUMPDEST                // func_selector]
+PUSH0                   // [0x00, function_selector]
+SLOAD                   // [value_from_slot0 -> (numHorses), function_selector] 
+// sload will go to slot0, and put the value back in stack
+PUSH1 0x40              // [0x40, numHorses, function_selector]
+MLOAD                   // [0x80, numHorses, function_selector]
+// we already know `0x40` is the Free Memory Pointer
+// Grab whatever is in `0x40` and put it in the stack
+// `0x40` contain `0x80`
+SWAP1                   // [numHorses, 0x80, function_selector]
+DUP2                    // [0x80, numHorses, 0x80, function_selector]
+MSTORE                  // [0x80, function_selector]
+// MSTORE will go to `0x80` and place `numHorses` in memory
+// Memory: 0x80 -> numHorses
+PUSH1 0x20              // [0x20, 0x80, function_selector]
+ADD                     // [0xa0, function_selector] 
+// increasing the FREE MEMORY POINTER to next slot
+// 0x20 + 0x80 => 32 + 128 => 160
+// 160 in hex => 0xa0
+PUSH1 0x40              // [0x40, 0xa0, function_selector]
+// still `0x40` is pointing to `0x80`
+MLOAD                   // [0x80, 0xa0, function_selector]
+DUP1                    // [0x80, 0x80, 0xa0, function_selector]
+SWAP2                   // [0xa0, 0x80, 0x80, function_selector]
+SUB                     // [0xa0 - 0x80, 0x80, function_selector]
+// 0xa0 - 0x80 => 160 - 128 => 32
+SWAP1                   // [0x80, 0xa0 - 0x80, function_selector]
+// Return a value of size 32 bytes, that's located at position `0x80` in memory
+// 0x80 will contain the value for numberOfHorses and it is of size 32 bytes
+RETURN                  // [function_selector]
 
 // updateHorseNumber jump dest 2
 // Check to see if there is a value to update the horse number to
