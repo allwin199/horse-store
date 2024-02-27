@@ -10,7 +10,7 @@
 // Free Memory Pointer
 PUSH1 0x80              // [0x80]
 PUSH1 0x40              // [0x40, 0x80]  
-MSTORE
+MSTORE                  // []       // Memory 0x40 -> 0x80
 
 CALLVALUE
 DUP1
@@ -149,3 +149,8 @@ PUSH13 0x63430008140033
 // `offset` will be whatever present at the top of the stack
 // `value` will be whatever present at the bottom
 // Inside the memory at position `0x40` save the value `0x80` 
+// refer memory-breakdown.md for more details
+
+// During contract creation code or run time code
+// Solidity will always load the free memory pointer
+// which means it will check which is the current memory slot where value can be placed
