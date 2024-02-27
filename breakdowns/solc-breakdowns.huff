@@ -18,7 +18,9 @@ CALLVALUE               // [msg.value]
 DUP1                    // [msg.value, msg.value]
 ISZERO                  // [msg.value == 0, msg.value] => If msg.value == 0, then o/p 1 => [1,0]
 PUSH1 0x0e              // [0x0e, msg.value == 0, msg.value]
-JUMPI                   // [msg.value]
+JUMPI                   // [msg.value] // If msg.value == 0, then go to `0x0e` // If msg.value != 0 continue
+// Jump dest if msg.value == 0, if msg.value == 0
+
 PUSH0                   // [0x00, msg.value]
 DUP1                    // [0x00, 0x00, msg.value]
 REVERT                  // [msg.value]
@@ -38,27 +40,43 @@ RETURN                   // []
 INVALID                  // []
 // INVALID signals the end of the contract creation code
 
-PUSH1 0x80
-PUSH1 0x40
-MSTORE
-CALLVALUE
-DUP1
-ISZERO
-PUSH1 0x0e
-JUMPI
-PUSH0
-DUP1
-REVERT
-JUMPDEST
-POP
-PUSH1 0x04
-CALLDATASIZE
-LT
-PUSH1 0x30
-JUMPI
-PUSH0
-CALLDATALOAD
-PUSH1 0xe0
+// 2. Runtime code
+// Entry point of all calls
+// In solidity entry point will be whatever opcode is deployed on chain
+// In huff entry point was main
+PUSH1 0x80               // [0x80]
+PUSH1 0x40               // [0x40]
+MSTORE                   // []      // Memory 0x40 -> 0x80
+
+// check for msg.value and if given Jump, else revert
+CALLVALUE                // [msg.value]
+DUP1                     // [msg.value, msg.value]
+ISZERO                   // [msg.value == 0, msg.value]
+PUSH1 0x0e               // [0x0e, msg.value == 0, msg.value] // pc
+JUMPI                    // [msg.value] // If msg.value == 0, then go to `0x0e` // If msg.value != 0 continue
+// Jump to continue! Jump to next JumpDest
+
+PUSH0                    // [0x00, msg.value]
+DUP1                     // [0x00, 0x00, msg.value]
+REVERT                   // [msg.value]
+
+// Jump dest if msg.value == 0, if msg.value == 0
+// Before JUMPI stack contains [msg.value]
+// This is checking to see if there is enough calldata for a function selector!
+JUMPDEST                 // [msg.value]
+POP                      // []
+PUSH1 0x04               // [0x04]
+CALLDATASIZE             // [calldata_size, 0x04] // when we call a function, calldata will be provided
+LT                       // [calldata_size < 0x04]  // calldata_size < 0x04 ? 1 : 0
+PUSH1 0x30               // [0x30, calldata_size < 0x04]
+JUMPI                    // [] // Jump to `0x30` if calldata_size < 0x04, or continue
+// Jump to continue! Jump to next JumpDest, if calldata_size < 0x04 -> jump to calldata_jump
+// since we have don't have a fallback fn, if the size of the calldata is too small, it will jump
+
+// If the calldata_size is big enough, it will continue
+PUSH0                    // [0x00]
+CALLDATALOAD             // [calldata, 0x00]
+PUSH1 0xe0               // [0xe0, calldata, 0x00]
 SHR
 DUP1
 PUSH4 0xcdfead2e
@@ -70,10 +88,15 @@ PUSH4 0xe026c017
 EQ
 PUSH1 0x45
 JUMPI
-JUMPDEST
-PUSH0
-DUP1
-REVERT
+
+// calldata_jump
+// Revert JumpDest
+JUMPDEST                // []
+PUSH0                   // [0x00]
+DUP1                    // [0x00, 0x00]
+REVERT                  // []
+// Revert If the calldata size is too small
+
 JUMPDEST
 PUSH1 0x43
 PUSH1 0x3f
@@ -235,3 +258,6 @@ PUSH13 0x63430008140033
 // we are returning the entire memory
 // which has run time code and
 // sticking them on chain as a smart contract
+
+// Since the functions is marked as payable
+// if msg.value is sent with the tx, then it will revert
