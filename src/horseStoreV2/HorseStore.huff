@@ -34,7 +34,27 @@
 
 #define macro IS_HAPPY_HORSE() = takes(0) returns(0) {}
 
-#define macro HORSE_ID_TO_FED_TIMESTAMP() = takes(0) returns(0) {}
+#define macro GET_HORSE_FED_TIMESTAMP() = takes(0) returns(0) {
+    // horseIdToFedTimeStamp will return the last_timestamp for the horseId
+    // we need storage slot of `horseIdToFedTimeStamp`
+    // we need `horseId`. 
+    // we get the value from storage, we cannot return from storage
+    // pop it into memory and return it
+
+    0x04 calldataload                       // [calldata_without_selector] 
+    // calldata_without_selector will have value about `horseId`
+    
+    [HORSE_FED_TIMESTAMP_LOCATION]          // [HORSE_FED_TIMESTAMP_LOCATION, horseId]
+
+    LOAD_ELEMENT_FROM_KEYS(0x00)            // [horseFedTimeStamp]
+
+    0x00 mstore                             // []     // Memory: [0x00: horseFedTimeStamp]
+
+    0x20 0x00 return                        // []
+    // size of the value is 0x20(32 bytes)
+    // value is in slot 0x00 in memory
+    // which means we are going to take 32 bytes starting from 0th poisition in memory and return
+}
 
 #define macro HORSE_HAPPY_IF_FED_WITHIN() = takes(0) returns(0) {}
 
@@ -64,7 +84,7 @@
         IS_HAPPY_HORSE()
 
     horseIdToFedTimeStamp:
-        HORSE_ID_TO_FED_TIMESTAMP()
+        GET_HORSE_FED_TIMESTAMP()
 
     horseHappyFedWithin:
         HORSE_HAPPY_IF_FED_WITHIN()
