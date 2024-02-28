@@ -1,0 +1,54 @@
+
+/* HorseStore Interace */
+#define function mintHorse() nonpayable returns()
+#define function feedHorse(uint256) nonpayable returns()
+#define function isHappyHorse(uint256) view returns(bool)
+#define function horseIdToFedTimeStamp(uint256) view returns(uint256)
+#define function HORSE_HAPPY_IF_FED_WITHIN() view returns(uint256)
+
+#define macro MAIN() = takes(0) returns(0) {
+    0x00 calldatatoload 0xe0 shr              // [function_selector]
+
+    dup1 __FUNC_SIG(mintHorse) eq mintHorse jumpi  
+    
+    dup1 __FUNC_SIG(feedHorse) eq feedHorse jumpi
+    // do we have to do dup1 again?      
+
+    dup1 __FUNC_SIG(isHappyHorse) eq isHappyHorse jumpi
+
+    dup1 __FUNC_SIG(horseIdToFedTimeStamp) eq horseIdToFedTimeStamp jumpi
+
+    dup1 __FUNC_SIG(HORSE_HAPPY_IF_FED_WITHIN) eq horseHappyFedWithin jumpi
+
+    0x00 0x00 revert
+
+    mintHorse:
+        MINT_HORSE()
+
+    feedHorse:
+        FEED_HORSE()
+
+    isHappyHorse:
+        IS_HAPPY_HORSE()
+
+    horseIdToFedTimeStamp:
+        HORSE_ID_TO_FED_TIMESTAMP()
+
+    horseHappyFedWithin:
+        HORSE_HAPPY_IF_FED_WITHIN()
+
+}
+
+// 0x00 calldatatoload 0xe0 shr              
+// the above opcodes will strip the `function_selector` out of the calldata.
+// then push function_selector on the stack
+
+// dup1 __FUNC_SIG(mintHorse) eq mintHorse jumpi  
+// duplicate the function selector and then get the function_selector for `mintHorse`
+// If both are equal Jump to `mintHorse` macro
+// else continue
+
+// dup1 __FUNC_SIG(feedHorse) eq feedHorse jumpi
+// duplicate the function selector and then get the function_selector for `feedHorse`
+// If both are equal Jump to `feedHorse` macro
+// else continue
