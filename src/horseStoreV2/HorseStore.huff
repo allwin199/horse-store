@@ -103,7 +103,13 @@
     // which means we are going to take 32 bytes starting from 0th poisition in memory and return
 }
 
-#define macro HORSE_HAPPY_IF_FED_WITHIN() = takes(0) returns(0) {}
+#define macro HORSE_HAPPY_IF_FED_WITHIN() = takes(0) returns(0) {
+    [HORSE_HAPPY_IF_FED_WITHIN_CONST]       // [HORSE_HAPPY_IF_FED_WITHIN_CONST]
+
+    0x00 mstore                             // [] Memory [0x00 : HORSE_HAPPY_IF_FED_WITHIN_CONST]
+
+    0x20 0x00 return
+}
 
 #define macro MAIN() = takes(0) returns(0) {
     0x00 calldataload 0xe0 shr             
