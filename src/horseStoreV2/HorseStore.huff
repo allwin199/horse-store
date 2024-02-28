@@ -11,6 +11,9 @@
 // Storage Slot
 #define constant HORSE_FED_TIMESTAMP_LOCATION = FREE_STORAGE_POINTER()
 // this will be storage slot for mapping
+#define constant HORSE_HAPPY_IF_FED_WITHIN_CONST = 0x0000000000000000000000000000000000000000000000000000000000015180
+// 1 days in hex
+// use chisel
 
 #define macro MINT_HORSE() = takes(0) returns(0) {}
 
@@ -32,7 +35,51 @@
 
 }
 
-#define macro IS_HAPPY_HORSE() = takes(0) returns(0) {}
+#define macro IS_HAPPY_HORSE() = takes(0) returns(0) {
+    0x04 calldataload                     // [calldata_without_selector]
+
+    [HORSE_FED_TIMESTAMP_LOCATION]        // [HORSE_FED_TIMESTAMP_LOCATION, horseId]
+
+    LOAD_ELEMENT_FROM_KEYS(0x00)          // [horseFedTimeStamp]
+
+    timestamp                             // [timestamp, horseFedTimeStamp]
+
+    dup2                                  // [horseFedTimeStamp, timestamp, horseFedTimeStamp]
+    
+    dup2                                  // [timestamp, horseFedTimeStamp, timestamp, horseFedTimeStamp]
+
+    sub                                   // [timestamp - horseFedTimeStamp, timestamp, horseFedTimeStamp]
+
+    [HORSE_HAPPY_IF_FED_WITHIN_CONST]     
+    // [HORSE_HAPPY_IF_FED_WITHIN_CONST, timestamp - horseFedTimeStamp, timestamp, horseFedTimeStamp]
+
+    gt  
+    // [HORSE_HAPPY_IF_FED_WITHIN_CONST > timestamp - horseFedTimeStamp, timestamp, horseFedTimeStamp]  
+    // (HORSE_HAPPY_IF_FED_WITHIN_CONST > timestamp - horseFedTimeStamp) will return true if horse has fed within 1 days, or else false.
+    //  [horse_has_been_fed_within_1_day, timestamp, horseFedTimeStamp]  will be in the stack
+
+    start_return_true                      // [horse_has_been_fed_within_1_day, timestamp, horseFedTimeStamp]
+    jumpi                                  // [timestamp, horseFedTimeStamp]
+    // if `horse_has_been_fed_within_1_day` returns `true` then Jump
+    // If this is true, then it will jump to start_return and return `true`
+    // else it will continue    
+
+    eq                                     // [timestamp == horseFedTimeStamp]
+    
+    start_return                           // [timestamp == horseFedTimeStamp]
+    jumpi
+    
+
+    start_return_true:
+    0x01                                    // [0x01, timestamp, horseFedTimeStamp]
+    // 0x01 will be true
+
+    start_return:
+    0x00 mstore                             // [] // Memory: [0x00: true or false]
+
+    0x20 0x00 return
+
+}
 
 #define macro GET_HORSE_FED_TIMESTAMP() = takes(0) returns(0) {
     // horseIdToFedTimeStamp will return the last_timestamp for the horseId
