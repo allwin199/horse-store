@@ -1,19 +1,434 @@
-/* Imports */
+/* Import */
 #include "../../lib/huffmate/src/data-structures/Hashmap.huff"
 #include "../../lib/huffmate/src/utils/CommonErrors.huff"
 
-/* HorseStore Interface */
-#define function mintHorse() nonpayable returns ()
-#define function feedHorse(uint256) nonpayable returns ()
-#define function isHappyHorse(uint256) view returns (bool)
-#define function totalSupply() view returns (uint256)
-#define function horseIdToFedTimeStamp(uint256) view returns (uint256)
-#define function HORSE_HAPPY_IF_FED_WITHIN() view returns (uint256)
+/* HorseStore Interace */
+#define function mintHorse() nonpayable returns()
+#define function feedHorse(uint256) nonpayable returns()
+#define function isHappyHorse(uint256) view returns(bool)
+#define function horseIdToFedTimeStamp(uint256) view returns(uint256)
+#define function HORSE_HAPPY_IF_FED_WITHIN() view returns(uint256)
 
-/* ERC721 Interface */
+// Storage Slot
+#define constant HORSE_FED_TIMESTAMP_LOCATION = FREE_STORAGE_POINTER()
+// this will be storage slot for mapping
+#define constant HORSE_HAPPY_IF_FED_WITHIN_CONST = 0x0000000000000000000000000000000000000000000000000000000000015180
+// 1 days in hex
+// use chisel
+#define constant TOTAL_SUPPLY = FREE_STORAGE_POINTER()
+
+# define macro CONSTRUCTOR() = takes(0) returns (0) {
+    ERC721_CONSTRUCTOR()
+}
+
+#define macro MINT_HORSE() = takes(0) returns(0) {
+    [TOTAL_SUPPLY]           // [TOTAL_SUPPLY]
+
+    sload                    // [totalSupply]
+    // loading totalSupply from location `TOTAL_SUPPLY`
+
+    dup1                     // [totalSupply, totalSupply]
+
+    caller                   // [msg.sender, totalSupply, totalSupply]
+    // get's the current caller address, which is `msg.sender`
+
+    _MINT()                  // [totalSupply]
+    // _MINT() takes 2 items of the stack and return nothing
+
+    // Increment the totalSupply
+    0x01                     // [0x01, totalSupply]
+    add                      // [0x01 + totalSupply]
+
+    [TOTAL_SUPPLY]           // [TOTAL_SUPPLY, 0x01 + totalSupply]
+
+    sstore                   // []
+
+    stop
+}
+
+#define macro FEED_HORSE() = takes(0) returns(0) {
+    timestamp                // [timestamp] will be on the stack
+    0x04 calldataload        // [calldata_without_selector, timestamp] // calldata_without_selector will have value about `horseId`
+
+    // we have [horseId, timestamp] in the stack
+    // we need to `sstore` this timestamp for the `horseId`
+    // we also need a storage slot
+    [HORSE_FED_TIMESTAMP_LOCATION]       // [HORSE_FED_TIMESTAMP_LOCATION, horseId, timestamp]
+    
+    STORE_ELEMENT_FROM_KEYS(0x00)        // []
+    // (0x00) is the free memory pointer
+    // STORE_ELEMENT_FROM_KEYS from `huffmate` will pop 3 items of the stack and returns 0
+    // It will go to `HORSE_FED_TIMESTAMP_LOCATION` and for `horseId` update the `timestamp`
+
+    stop
+
+}
+
+#define macro IS_HAPPY_HORSE() = takes(0) returns(0) {
+    0x04 calldataload                     // [calldata_without_selector]
+
+    [HORSE_FED_TIMESTAMP_LOCATION]        // [HORSE_FED_TIMESTAMP_LOCATION, horseId]
+
+    LOAD_ELEMENT_FROM_KEYS(0x00)          // [horseFedTimeStamp]
+
+    timestamp                             // [timestamp, horseFedTimeStamp]
+
+    dup2                                  // [horseFedTimeStamp, timestamp, horseFedTimeStamp]
+    
+    dup2                                  // [timestamp, horseFedTimeStamp, timestamp, horseFedTimeStamp]
+
+    sub                                   // [timestamp - horseFedTimeStamp, timestamp, horseFedTimeStamp]
+
+    [HORSE_HAPPY_IF_FED_WITHIN_CONST]     
+    // [HORSE_HAPPY_IF_FED_WITHIN_CONST, timestamp - horseFedTimeStamp, timestamp, horseFedTimeStamp]
+
+    gt  
+    // [HORSE_HAPPY_IF_FED_WITHIN_CONST > timestamp - horseFedTimeStamp, timestamp, horseFedTimeStamp]  
+    // (HORSE_HAPPY_IF_FED_WITHIN_CONST > timestamp - horseFedTimeStamp) will return true if horse has fed within 1 days, or else false.
+    //  [horse_has_been_fed_within_1_day, timestamp, horseFedTimeStamp]  will be in the stack
+
+    start_return_true                      // [horse_has_been_fed_within_1_day, timestamp, horseFedTimeStamp]
+    jumpi                                  // [timestamp, horseFedTimeStamp]
+    // if `horse_has_been_fed_within_1_day` returns `true` then Jump
+    // If this is true, then it will jump to start_return and return `true`
+    // else it will continue    
+
+    eq                                     // [timestamp == horseFedTimeStamp]
+    
+    start_return                           // [timestamp == horseFedTimeStamp]
+    jumpi
+    
+
+    start_return_true:
+    0x01                                    // [0x01, timestamp, horseFedTimeStamp]
+    // 0x01 will be true
+
+    start_return:
+    0x00 mstore                             // [] // Memory: [0x00: true or false]
+
+    0x20 0x00 return
+
+}
+
+#define macro GET_HORSE_FED_TIMESTAMP() = takes(0) returns(0) {
+    // horseIdToFedTimeStamp will return the last_timestamp for the horseId
+    // we need storage slot of `horseIdToFedTimeStamp`
+    // we need `horseId`. 
+    // we get the value from storage, we cannot return from storage
+    // pop it into memory and return it
+
+    0x04 calldataload                       // [calldata_without_selector] 
+    // calldata_without_selector will have value about `horseId`
+    
+    [HORSE_FED_TIMESTAMP_LOCATION]          // [HORSE_FED_TIMESTAMP_LOCATION, horseId]
+
+    LOAD_ELEMENT_FROM_KEYS(0x00)            // [horseFedTimeStamp]
+
+    0x00 mstore                             // []     // Memory: [0x00: horseFedTimeStamp]
+
+    0x20 0x00 return                        // []
+    // size of the value is 0x20(32 bytes)
+    // value is in slot 0x00 in memory
+    // which means we are going to take 32 bytes starting from 0th poisition in memory and return
+}
+
+#define macro HORSE_HAPPY_IF_FED_WITHIN() = takes(0) returns(0) {
+    [HORSE_HAPPY_IF_FED_WITHIN_CONST]       // [HORSE_HAPPY_IF_FED_WITHIN_CONST]
+
+    0x00 mstore                             // [] Memory [0x00 : HORSE_HAPPY_IF_FED_WITHIN_CONST]
+
+    0x20 0x00 return
+}
+
+#define macro MAIN() = takes(0) returns(0) {
+    0x00 calldataload 0xe0 shr             
+
+    dup1 __FUNC_SIG(mintHorse) eq mintHorse jumpi  
+    
+    dup1 __FUNC_SIG(feedHorse) eq feedHorse jumpi
+    // do we have to do dup1 again?      
+
+    dup1 __FUNC_SIG(isHappyHorse) eq isHappyHorse jumpi
+
+    dup1 __FUNC_SIG(horseIdToFedTimeStamp) eq horseIdToFedTimeStamp jumpi
+
+    dup1 __FUNC_SIG(HORSE_HAPPY_IF_FED_WITHIN) eq horseHappyFedWithin jumpi
+
+    0x00 0x00 revert
+
+    // Mint and Burning Functions
+    dup1 __FUNC_SIG(mint)                       eq mint_jump jumpi
+    dup1 __FUNC_SIG(burn)                       eq burn_jump jumpi
+
+    dup1 __FUNC_SIG("safeMint(address,uint256)") eq safe_mint jumpi
+    dup1 __FUNC_SIG("safeMint(address,uint256,bytes)") eq safe_mint_with_data jumpi
+
+    dup1 __FUNC_SIG(approve)                    eq approve jumpi
+    dup1 __FUNC_SIG(setApprovalForAll)          eq setApprovalForAll jumpi
+
+    dup1 __FUNC_SIG(transferFrom)               eq transferFrom jumpi
+    dup1 __FUNC_SIG(safeTransferFrom)           eq safeTransferFrom jumpi
+
+    dup1 __FUNC_SIG(name)                       eq name jumpi
+    dup1 __FUNC_SIG(symbol)                     eq symbol jumpi
+    dup1 __FUNC_SIG(tokenURI)                   eq tokenURI jumpi
+    dup1 __FUNC_SIG(supportsInterface)          eq supportsInterface jumpi
+
+    dup1 __FUNC_SIG(getApproved)                eq getApproved jumpi
+    dup1 __FUNC_SIG(isApprovedForAll)           eq isApprovedForAll jumpi
+
+    dup1 __FUNC_SIG(balanceOf)                  eq balanceOf jumpi
+    dup1 __FUNC_SIG(ownerOf)                    eq ownerOf jumpi
+
+    dup1 __FUNC_SIG("safeTransferFrom(address,address,uint256,bytes)") eq safeTransferFromData jumpi
+
+    // Revert on failed dispatch
+    0x00 dup1 revert
+
+    mintHorse:
+        MINT_HORSE()
+
+    feedHorse:
+        FEED_HORSE()
+
+    isHappyHorse:
+        IS_HAPPY_HORSE()
+
+    horseIdToFedTimeStamp:
+        GET_HORSE_FED_TIMESTAMP()
+
+    horseHappyFedWithin:
+        HORSE_HAPPY_IF_FED_WITHIN()
+
+    safe_mint:
+        SAFE_MINT()
+    safe_mint_with_data:
+        SAFE_MINT_WITH_DATA()
+
+    mint_jump:
+        MINT()
+    burn_jump:
+        BURN()
+
+    approve:
+        APPROVE()
+    setApprovalForAll:
+        SET_APPROVAL_FOR_ALL()
+
+    transferFrom:
+        TRANSFER_FROM()
+    safeTransferFrom:
+        SAFE_TRANSFER_FROM()
+    safeTransferFromData:
+        SAFE_TRANSFER_FROM_WITH_DATA()
+
+    name:
+        NAME()
+    symbol:
+        SYMBOL()
+    tokenURI:
+        TOKEN_URI()
+    supportsInterface:
+        SUPPORTS_INTERFACE()
+
+    getApproved:
+        GET_APPROVED()
+    isApprovedForAll:
+        IS_APPROVED_FOR_ALL()
+
+    balanceOf:
+        BALANCE_OF()
+    ownerOf:
+        OWNER_OF()
+}
+
+// 0x00 calldatatoload 0xe0 shr              
+// the above opcodes will strip the `function_selector` out of the calldata.
+// then push function_selector on the stack
+
+// dup1 __FUNC_SIG(mintHorse) eq mintHorse jumpi  
+// duplicate the function selector and then get the function_selector for `mintHorse`
+// If both are equal Jump to `mintHorse` macro
+// else continue
+
+// dup1 __FUNC_SIG(feedHorse) eq feedHorse jumpi
+// duplicate the function selector and then get the function_selector for `feedHorse`
+// If both are equal Jump to `feedHorse` macro
+// else continue
+
+#define macro MINT() = takes (0) returns (0) {
+    0x24 calldataload       // [tokenId]
+    0x04 calldataload       // [to, tokenId]
+    _MINT()
+    stop
+}
+
+#define macro BURN() = takes (0) returns (0) {
+    0x04 calldataload       // [tokenId]
+    _BURN()
+    stop
+}
+
+#define macro SAFE_MINT() = takes (0) returns (0) {
+    0x24 calldataload       // [tokenId]
+    0x04 calldataload       // [to, tokenId]
+    _MINT()
+
+    // Safe Logic
+    // Make sure we can transfer to the recipient
+    0x04 calldataload       // [to]
+    dup1 extcodesize        // [to.code.length, to]
+    iszero safe jumpi       // [to]
+
+    // onERC721Received Selector
+    0x150b7a02 dup1         // [onERC721Received, onERC721Received, to]
+    0xE0 shl                // [onERC721Received_shifted, onERC721Received, to]
+
+    // Store the left-shifted selector for call
+    0x20 mstore             // [onERC721Received, to]
+
+    // Store the msg.sender as the first arg
+    caller 0x24 mstore      // [onERC721Received, to]
+
+    // Store address(0) as the second arg
+    0x00                    // [address(0), onERC721Received, to]
+    0x44 mstore             // [onERC721Received, to]
+
+    // Id is the third arg
+    0x24 calldataload       // [tokenId, onERC721Received, to]
+    0x64 mstore             // [onERC721Received, to]
+
+    // Blank bytes array as 4th arg (no data)
+    0x80 0x84 mstore
+    0x00 0xA4 mstore
+
+    // Call address(to).onERC721Received(msg.sender, from, tokenId, "")
+    0x20                    // [retSize, onERC721Received, to]
+    0x00                    // [retOffset, retSize, onERC721Received, to]
+    0xA4                    // [argSize, retOffset, retSize, onERC721Received, to]
+    dup3                    // [argOffset, argSize, retOffset, retSize, onERC721Received, to]
+    dup3                    // [value, argOffset, argSize, retOffset, retSize, onERC721Received, to]
+    dup7                    // [to, value, argOffset, argSize, retOffset, retSize, onERC721Received, to]
+    gas                     // [gas, to, value, argOffset, argSize, retOffset, retSize, onERC721Received, to]
+    call                    // [success, onERC721Received, to]
+
+    // Revert if call isn't successful
+    cont jumpi              // [onERC721Received, to]
+    0x00 dup1 revert
+    cont:
+
+    // Compare the return data to the onERC721Received selector
+    0x00 mload 0xE0 shr     // [response, onERC721Received, to]
+    eq safe jumpi           // [to]
+
+    // Revert if the return data is not accepted
+    UNSAFE_RECIPIENT(0x00)
+
+    // Stop execution if safe
+    safe:
+    stop
+}
+
+#define macro SAFE_MINT_WITH_DATA() = takes (0) returns (0) {
+    0x44 calldataload       // [data]
+    0x24 calldataload       // [tokenId, data]
+    0x04 calldataload       // [to, tokenId, data]
+    _MINT()
+
+    // Make sure we can transfer to the recipient
+    0x04 calldataload       // [to]
+    dup1 extcodesize        // [to.code.length, to]
+    iszero safe jumpi       // [to]
+
+    // onERC721Received Selector
+    0x150b7a02 dup1         // [onERC721Received, onERC721Received, to]
+    0xE0 shl                // [onERC721Received_shifted, onERC721Received, to]
+
+    // Store the left-shifted selector for call
+    0x20 mstore             // [onERC721Received, to]
+
+    // Store the msg.sender as the first arg
+    caller 0x24 mstore      // [onERC721Received, to]
+
+    // Store address(0) as the second arg
+    0x00                    // [address(0), onERC721Received, to]
+    0x44 mstore             // [onERC721Received, to]
+
+    // Id is the third arg
+    0x24 calldataload       // [tokenId, onERC721Received, to]
+    0x64 mstore             // [onERC721Received, to]
+
+    // Store the pointer to the data length
+    0x80 0x84 mstore        // [onERC721Received, to]
+
+    0x64 calldataload       // [len(data), onERC721Received, to]
+    0x05 shl                // [len(data) * 0x20, onERC721Received, to]
+    0x20 add                // [len(data) * 0x20 + 0x20, onERC721Received, to]
+    dup1                    // [len(data) * 0x20 + 0x20, len(data) * 0x20 + 0x20, onERC721received, to]
+    0x64                    // [0x64, len(data) * 0x20 + 0x20, len(data) * 0x20 + 0x20, onERC721received, to]
+    0xA4                    // [0x84, 0x64, len(data) * 0x20 + 0x20, len(data) * 0x20 + 0x20, onERC721received, to]
+    calldatacopy            // [len(bytes), onERC721received, to]
+
+    // Call address(to).onERC721Received(msg.sender, from, tokenId, bytes)
+    0x20                    // [retSize, len(bytes), onERC721Received, to]
+    0x00                    // [retOffset, retSize, len(bytes), onERC721Received, to]
+    swap1 swap2             // [len(bytes), retOffset, retSize, onERC721Received, to]
+    0x84 add                // [argSize, retOffset, retSize, onERC721Received, to]
+    dup3                    // [argOffset, argSize, retOffset, retSize, len(bytes), onERC721Received, to]
+    dup3                    // [value, argOffset, argSize, retOffset, retSize, len(bytes), onERC721Received, to]
+    dup7                    // [to, value, argOffset, argSize, retOffset, retSize, len(bytes), onERC721Received, to]
+    gas                     // [gas, to, value, argOffset, argSize, retOffset, retSize, len(bytes), onERC721Received, to]
+    call                    // [success, len(bytes), onERC721Received, to]
+
+    // Revert if call isn't successful
+    selector_call_success jumpi              // [len(bytes), onERC721Received, to]
+    0x00 dup1 revert
+    selector_call_success:
+
+    // Compare the return data to the onERC721Received selector
+    0x00 mload 0xE0 shr     // [response, onERC721Received, to]
+    eq safe jumpi           // [to]
+
+    // Revert if the return data is not accepted
+    UNSAFE_RECIPIENT(0x00)
+
+    // Stop execution if safe
+    safe:
+    stop
+
+}
+
+
+/////////////////////////////////////////////
+/////////////////////////////////////////////
+/////////////////////////////////////////////
+// Imported from Huffmate
+/////////////////////////////////////////////
+/////////////////////////////////////////////
+/////////////////////////////////////////////
+
+
+
+// "NON_PAYABLE" Revert Message String
+#define constant NON_PAYABLE_ERROR = 0xb4e4f4e5f50415941424c45000000000000000000000000000000000000000000
+#define constant NON_PAYABLE_LENGTH = 0x0b
+
+/// @notice Reverts if the call has a non-zero value
+/// @notice Reverts with message "NON_PAYABLE"
+#define macro NON_PAYABLE() = takes (0) returns (0) {
+    [NON_PAYABLE_ERROR]      // ["NON_PAYABLE"]
+    [NON_PAYABLE_LENGTH]     // [11 (length), "NON_PAYABLE"]
+    callvalue iszero         // [msg.value == 0, 11 (length), "NON_PAYABLE"]
+    REQUIRE()                // []
+}
+
+// Interface
 #define function name() nonpayable returns (string)
 #define function symbol() nonpayable returns (string)
 #define function tokenURI(uint256) nonpayable returns (string)
+
+#define function mint(address, uint256) payable returns ()
+#define function burn(uint256) nonpayable returns ()
 
 #define function transfer(address,uint256) nonpayable returns ()
 #define function transferFrom(address,address,uint256) nonpayable returns ()
@@ -34,19 +449,10 @@
 #define event Approval(address,address,uint256)
 #define event ApprovalForAll(address,address,bool)
 
-/* Constants */
-#define constant HORSE_HAPPY_IF_FED_WITHIN_CONST = 0x0000000000000000000000000000000000000000000000000000000000015180 // 1 days 
-
-/* Storage Slots */
-#define constant TOTAL_SUPPLY = FREE_STORAGE_POINTER()
+// Storage Slots
 #define constant OWNER_LOCATION = FREE_STORAGE_POINTER()
-#define constant HORSE_FED_TIMESTAMP_LOCATION = FREE_STORAGE_POINTER()
 #define constant BALANCE_LOCATION = FREE_STORAGE_POINTER()
 #define constant SINGLE_APPROVAL_LOCATION = FREE_STORAGE_POINTER()
-
-// "NON_PAYABLE" Revert Message String
-#define constant NON_PAYABLE_ERROR = 0xb4e4f4e5f50415941424c45000000000000000000000000000000000000000000
-#define constant NON_PAYABLE_LENGTH = 0x0b
 
 // Immutables offsets
 #define constant NAME_OFFSET =          0x0000000000000000000000000000000000000000000000000000000000000080
@@ -54,82 +460,7 @@
 #define constant SYMBOL_OFFSET =        0x0000000000000000000000000000000000000000000000000000000000000020
 #define constant SYMBOL_LENGTH_OFFSET = 0x0000000000000000000000000000000000000000000000000000000000000040
 
-/* HorseStore Methods */ 
-#define macro GET_TOTAL_SUPPLY() = takes (0) returns (0) {
-    [TOTAL_SUPPLY] // [TOTAL_SUPPLY]
-    sload// [totalSupply]
-    0x00 mstore
-    0x20 0x00 return
-}
-
-#define macro HORSE_HAPPY_IF_FED_WITHIN() = takes (0) returns (0) {
-    [HORSE_HAPPY_IF_FED_WITHIN_CONST] // [HORSE_HAPPY_IF_FED_WITHIN]
-    0x00 mstore
-    0x20 0x00 return
-}
-
-#define macro GET_HORSE_FED_TIMESTAMP() = takes (0) returns (0) {
-    0x04 calldataload              // [horseId]
-    [HORSE_FED_TIMESTAMP_LOCATION] // [HORSE_FED_TIMESTAMP_LOCATION, horseId]
-    LOAD_ELEMENT_FROM_KEYS(0x00)   // [horseFedTimestamp] // This runs an sload too
-
-    0x00 mstore                    // [] Store value in memory.
-    0x20 0x00 return               // Returns what' sin memory
-}
-
-#define macro MINT_HORSE() = takes (0) returns (0) {
-    [TOTAL_SUPPLY] // [TOTAL_SUPPLY] Remember, this is the Total Supply Storage Slot!
-    sload          // [totalSupply]  Now, we have the value of what's in the Total Supply Storage Slot
-    dup1           // [totalSupply, totalSupply]
-    caller         // [msg.sender, totalSupply, totalSupply]
-    _MINT()        // [totalSupply] 
-
-    // Increment totalSupply
-    0x01           // [1, totalSupply]
-    add            // [totalSupply + 1]
-    [TOTAL_SUPPLY] // [TOTAL_SUPPLY, totalSupply + 1]
-    sstore         // []
-    stop           // []
-}
-
-#define macro FEED_HORSE() = takes (0) returns (0) {
-    timestamp                       // [timestamp]
-    0x04 calldataload               // [horseId, timestamp]
-    // We setup for the STORE_ELEMENT_FROM_KEYS macro with:
-    // mapping Storage Slot (this is used to calc the value storage slot), key, newValue
-    [HORSE_FED_TIMESTAMP_LOCATION]  // [HORSE_FED_TIMESTAMP_LOCATION, horseId, timestamp]
-    STORE_ELEMENT_FROM_KEYS(0x00)   // []
-    stop
-}
-
-#define macro IS_HAPPY_HORSE() = takes (0) returns (0) {
-    0x04 calldataload                   // [horseId]
-    [HORSE_FED_TIMESTAMP_LOCATION]      // [HORSE_FED_TIMESTAMP_LOCATION, horseId]
-    LOAD_ELEMENT_FROM_KEYS(0x00)        // [horseFedTimestamp]
-    timestamp                           // [timestamp, horseFedTimestamp]
-    dup2 dup2                           // [timestamp, horseFedTimestamp, timestamp, horseFedTimestamp]
-    sub                                 // [timestamp - horseFedTimestamp, timestamp, horseFedTimestamp]
-    [HORSE_HAPPY_IF_FED_WITHIN_CONST]   // [HORSE_HAPPY_IF_FED_WITHIN, timestamp - horseFedTimestamp, timestamp, horseFedTimestamp]
-    gt                                  // [HORSE_HAPPY_IF_FED_WITHIN > timestamp - horseFedTimestamp, timestamp, horseFedTimestamp]
-    start_return_true jumpi             // [timestamp, horseFedTimestamp]
-    eq                                  // [timestamp == horseFedTimestamp]
-    start_return 
-    jump
-    
-    start_return_true:
-    0x01
-
-    start_return:
-    // Store value in memory.
-    0x00 mstore
-
-    // Return value
-    0x20 0x00 return
-}
-
-//////////////////////////////////////////////////////////////
-//                            ERC721 FUNCTIONS
-///////////////////////////////////////////////////////////////
+/// >>>>>>>>>>>>>>>>>>>>>  CONSTRUCTOR  <<<<<<<<<<<<<<<<<<<<<< ///
 
 /// @notice Constructor
 #define macro ERC721_CONSTRUCTOR() = takes (0) returns (0) {
@@ -153,90 +484,6 @@
     returndatasize                          // [return_offset, runtime_size]
     return                                  // []
 }
-
-#define macro CONSTRUCTOR() = takes (0) returns (0) {
-    ERC721_CONSTRUCTOR()
-}
-
-#define macro MAIN() = takes (0) returns (0) {
-    // Identify which function is being called.
-    0x00 calldataload 0xE0 shr
-
-    dup1 __FUNC_SIG(totalSupply) eq totalSupply jumpi
-    dup1 __FUNC_SIG(feedHorse) eq feedHorse jumpi
-    dup1 __FUNC_SIG(isHappyHorse) eq isHappyHorse jumpi
-    dup1 __FUNC_SIG(horseIdToFedTimeStamp) eq horseIdToFedTimeStamp jumpi
-    dup1 __FUNC_SIG(mintHorse) eq mintHorse jumpi
-    dup1 __FUNC_SIG(HORSE_HAPPY_IF_FED_WITHIN) eq horseHappyIfFedWithin jumpi
-
-    dup1 __FUNC_SIG(approve) eq approve jumpi
-    dup1 __FUNC_SIG(setApprovalForAll) eq setApprovalForAll jumpi
-    dup1 __FUNC_SIG(transferFrom) eq transferFrom jumpi
-
-    dup1 __FUNC_SIG(name) eq name jumpi
-    dup1 __FUNC_SIG(symbol) eq symbol jumpi
-    dup1 __FUNC_SIG(tokenURI) eq tokenURI jumpi
-    dup1 __FUNC_SIG(supportsInterface)eq supportsInterface jumpi
-
-    dup1 __FUNC_SIG(getApproved) eq getApproved jumpi
-    dup1 __FUNC_SIG(isApprovedForAll) eq isApprovedForAll jumpi
-
-    dup1 __FUNC_SIG(balanceOf) eq balanceOf jumpi
-    dup1 __FUNC_SIG(ownerOf)eq ownerOf jumpi
-
-    dup1 __FUNC_SIG(safeTransferFrom) eq safeTransferFrom jumpi
-    dup1 __FUNC_SIG("safeTransferFrom(address,address,uint256,bytes)") eq safeTransferFromData jumpi
-
-    // Revert on failed dispatch
-    0x00 dup1 revert
-    
-    totalSupply:
-        GET_TOTAL_SUPPLY()
-    feedHorse:
-        FEED_HORSE()
-    isHappyHorse:
-        IS_HAPPY_HORSE()
-    mintHorse:
-        MINT_HORSE()
-    horseIdToFedTimeStamp:
-        GET_HORSE_FED_TIMESTAMP()
-    horseHappyIfFedWithin:
-        HORSE_HAPPY_IF_FED_WITHIN()
-
-    approve:
-        APPROVE()
-    setApprovalForAll:
-        SET_APPROVAL_FOR_ALL()
-    transferFrom:
-        TRANSFER_FROM()
-    name:
-        NAME()
-    symbol:
-        SYMBOL()
-    tokenURI:
-        TOKEN_URI()
-    supportsInterface:
-        SUPPORTS_INTERFACE()
-    getApproved:
-        GET_APPROVED()
-    isApprovedForAll:
-        IS_APPROVED_FOR_ALL()
-    balanceOf:
-        BALANCE_OF()
-    ownerOf:
-        OWNER_OF()
-    safeTransferFrom:
-        SAFE_TRANSFER_FROM()
-    safeTransferFromData:
-        SAFE_TRANSFER_FROM_WITH_DATA()
-    stop
-}
-
-
-////////////////////////////////////////////////////
-////////////////// ERC721 Methods //////////////////
-////////////////////////////////////////////////////
-
 
 /// >>>>>>>>>>>>>>>>>>>>>  VIEW FUNCTIONS  <<<<<<<<<<<<<<<<<<<<<< ///
 
@@ -725,13 +972,4 @@
     0x00 dup4                       // [tokenId, address(0), from, to, tokenId]
     [SINGLE_APPROVAL_LOCATION]      // [approval_slot, tokenId, address(0), from, to, tokenId]
     STORE_ELEMENT_FROM_KEYS(0x00)   // [from, to, tokenId]
-}
-
-/// @notice Reverts if the call has a non-zero value
-/// @notice Reverts with message "NON_PAYABLE"
-#define macro NON_PAYABLE() = takes (0) returns (0) {
-    [NON_PAYABLE_ERROR]      // ["NON_PAYABLE"]
-    [NON_PAYABLE_LENGTH]     // [11 (length), "NON_PAYABLE"]
-    callvalue iszero         // [msg.value == 0, 11 (length), "NON_PAYABLE"]
-    REQUIRE()                // []
 }
